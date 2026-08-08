@@ -61,6 +61,23 @@ public class ReplaceWarehouseUseCaseTest {
   }
 
   @Test
+  public void handlesNullStockAndCapacityOnReplacedWarehouseWithoutNpe() {
+    Warehouse old = warehouse("MWH.001", "AMSTERDAM-001", 50, 5);
+    old.stock = null; // legacy/corrupt persisted data
+    old.capacity = null;
+    when(store.findByBusinessUnitCode("MWH.001")).thenReturn(old);
+    when(locationResolver.resolveByIdentifier("AMSTERDAM-001"))
+        .thenReturn(new Location("AMSTERDAM-001", 5, 100));
+    when(store.getAll()).thenReturn(List.of(old));
+
+    // null old stock/capacity are treated as 0; new stock 0 matches, capacity 10 accommodates 0
+    Warehouse replacement = warehouse("MWH.001", "AMSTERDAM-001", 10, 0);
+    useCase.replace(replacement);
+
+    verify(store).create(replacement);
+  }
+
+  @Test
   public void throwsWhenTargetNotFound() {
     when(store.findByBusinessUnitCode("MWH.404")).thenReturn(null);
 

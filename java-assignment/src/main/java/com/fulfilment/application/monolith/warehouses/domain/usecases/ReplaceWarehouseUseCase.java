@@ -41,14 +41,18 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
           "Location " + newWarehouse.location + " is not a valid location.");
     }
 
+    // The old warehouse comes from persisted data whose numeric columns are nullable; guard them.
+    int oldStock = WarehouseValidations.nullSafeInt(old.stock);
+    int oldCapacity = WarehouseValidations.nullSafeInt(old.capacity);
+
     // 3. The new warehouse must be able to hold the stock carried over from the old one.
-    if (newWarehouse.capacity < old.stock) {
+    if (newWarehouse.capacity < oldStock) {
       throw new WarehouseValidationException(
           "New warehouse capacity cannot accommodate the stock of the warehouse being replaced.");
     }
 
     // 4. The stock of the new warehouse must match the stock of the previous one.
-    if (!newWarehouse.stock.equals(old.stock)) {
+    if (newWarehouse.stock != oldStock) {
       throw new WarehouseValidationException(
           "New warehouse stock must match the stock of the warehouse being replaced.");
     }
@@ -57,7 +61,7 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
     int usedCapacity =
         WarehouseValidations.usedCapacityAt(warehouseStore, location.identification);
     if (location.identification.equals(old.location)) {
-      usedCapacity -= old.capacity;
+      usedCapacity -= oldCapacity;
     }
     if (usedCapacity + newWarehouse.capacity > location.maxCapacity) {
       throw new WarehouseValidationException(

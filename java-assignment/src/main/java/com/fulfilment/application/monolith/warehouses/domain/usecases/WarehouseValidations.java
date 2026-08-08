@@ -40,6 +40,11 @@ final class WarehouseValidations {
         .sum();
   }
 
+  /** Unboxes a nullable capacity/stock value, treating a missing value as 0. */
+  static int nullSafeInt(Integer value) {
+    return value == null ? 0 : value;
+  }
+
   private static boolean isActiveAt(Warehouse warehouse, String location) {
     return warehouse.archivedAt == null && location.equals(warehouse.location);
   }
