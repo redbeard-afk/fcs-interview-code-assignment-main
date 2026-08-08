@@ -16,25 +16,39 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
   @Override
   public void create(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'create'");
+    persist(DbWarehouse.fromWarehouse(warehouse));
   }
 
   @Override
   public void update(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'replace'");
+    DbWarehouse entity = findActiveEntityByBusinessUnitCode(warehouse.businessUnitCode);
+    if (entity == null) {
+      return;
+    }
+    // Managed entity: dirty checking flushes these changes at commit.
+    entity.location = warehouse.location;
+    entity.capacity = warehouse.capacity;
+    entity.stock = warehouse.stock;
+    entity.createdAt = warehouse.createdAt;
+    entity.archivedAt = warehouse.archivedAt;
   }
 
   @Override
   public void remove(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'remove'");
+    DbWarehouse entity = findActiveEntityByBusinessUnitCode(warehouse.businessUnitCode);
+    if (entity != null) {
+      delete(entity);
+    }
   }
 
   @Override
   public Warehouse findByBusinessUnitCode(String buCode) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'findById'");
+    DbWarehouse entity = findActiveEntityByBusinessUnitCode(buCode);
+    return entity == null ? null : entity.toWarehouse();
+  }
+
+  /** Returns the single active (not archived) warehouse for the business unit code, or null. */
+  private DbWarehouse findActiveEntityByBusinessUnitCode(String buCode) {
+    return find("businessUnitCode = ?1 and archivedAt is null", buCode).firstResult();
   }
 }
