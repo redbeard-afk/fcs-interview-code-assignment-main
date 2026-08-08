@@ -47,6 +47,11 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
     return entity == null ? null : entity.toWarehouse();
   }
 
+  /** Returns the active {@link DbWarehouse} entity for the business unit code, or null. */
+  public DbWarehouse findActiveDbByBusinessUnitCode(String buCode) {
+    return findActiveEntityByBusinessUnitCode(buCode);
+  }
+
   /** Returns the single active (not archived) warehouse for the business unit code, or null. */
   private DbWarehouse findActiveEntityByBusinessUnitCode(String buCode) {
     return find("businessUnitCode = ?1 and archivedAt is null", buCode).firstResult();
