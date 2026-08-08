@@ -31,7 +31,7 @@ public class CreateWarehouseUseCaseTest {
     useCase = new CreateWarehouseUseCase(store, locationResolver);
   }
 
-  private Warehouse warehouse(String buCode, String location, int capacity, int stock) {
+  private Warehouse warehouse(String buCode, String location, Integer capacity, Integer stock) {
     Warehouse w = new Warehouse();
     w.businessUnitCode = buCode;
     w.location = location;
@@ -52,6 +52,20 @@ public class CreateWarehouseUseCaseTest {
 
     verify(store).create(w);
     assertNotNull(w.createdAt);
+  }
+
+  @Test
+  public void createsWhenExistingWarehouseCapacityIsNull() {
+    // An existing warehouse at the location has a null capacity: it should count as 0 capacity used.
+    when(store.findByBusinessUnitCode("MWH.100")).thenReturn(null);
+    when(locationResolver.resolveByIdentifier("AMSTERDAM-001"))
+        .thenReturn(new Location("AMSTERDAM-001", 5, 100));
+    when(store.getAll()).thenReturn(List.of(warehouse("MWH.012", "AMSTERDAM-001", null, 0)));
+
+    Warehouse w = warehouse("MWH.100", "AMSTERDAM-001", 30, 10);
+    useCase.create(w);
+
+    verify(store).create(w);
   }
 
   @Test
@@ -90,12 +104,13 @@ public class CreateWarehouseUseCaseTest {
   }
 
   @Test
-  public void rejectsWhenCapacityExceedsLocationMax() {
+  public void rejectsWhenTotalCapacityWouldExceedLocation() {
     when(store.findByBusinessUnitCode(any())).thenReturn(null);
     when(locationResolver.resolveByIdentifier("AMSTERDAM-001"))
         .thenReturn(new Location("AMSTERDAM-001", 5, 100));
     when(store.getAll()).thenReturn(List.of(warehouse("MWH.001", "AMSTERDAM-001", 95, 1)));
 
+    // 95 already used + 10 new = 105 > 100
     assertThrows(
         WarehouseValidationException.class,
         () -> useCase.create(warehouse("MWH.100", "AMSTERDAM-001", 10, 1)));
@@ -120,6 +135,36 @@ public class CreateWarehouseUseCaseTest {
     assertThrows(
         WarehouseValidationException.class,
         () -> useCase.create(warehouse(null, "AMSTERDAM-001", 10, 1)));
+    verify(store, never()).create(any());
+  }
+
+  @Test
+  public void rejectsMissingLocation() {
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.create(warehouse("MWH.100", null, 10, 1)));
+    verify(store, never()).create(any());
+  }
+
+  @Test
+  public void rejectsInvalidCapacity() {
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.create(warehouse("MWH.100", "AMSTERDAM-001", 0, 1)));
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.create(warehouse("MWH.100", "AMSTERDAM-001", null, 1)));
+    verify(store, never()).create(any());
+  }
+
+  @Test
+  public void rejectsInvalidStock() {
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.create(warehouse("MWH.100", "AMSTERDAM-001", 10, -1)));
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.create(warehouse("MWH.100", "AMSTERDAM-001", 10, null)));
     verify(store, never()).create(any());
   }
 }

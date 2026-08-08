@@ -97,6 +97,21 @@ public class WarehouseResourceImplTest {
   }
 
   @Test
+  public void archiveAlreadyArchivedReturns409() {
+    given()
+        .contentType("application/json")
+        .body(body("REST.DBLARCH", "HELMOND-001", 10, 5))
+        .when()
+        .post(PATH)
+        .then()
+        .statusCode(201);
+
+    given().when().delete(PATH + "/REST.DBLARCH").then().statusCode(204);
+    // second archive: the code exists but is already archived
+    given().when().delete(PATH + "/REST.DBLARCH").then().statusCode(409);
+  }
+
+  @Test
   public void replaceValidReturns200WithNewData() {
     // Replace seeded MWH.023 (TILBURG-001, cap 30, stock 27) with a larger-capacity unit.
     given()

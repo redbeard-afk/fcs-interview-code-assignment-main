@@ -33,7 +33,7 @@ public class ReplaceWarehouseUseCaseTest {
     useCase = new ReplaceWarehouseUseCase(store, locationResolver);
   }
 
-  private Warehouse warehouse(String buCode, String location, int capacity, int stock) {
+  private Warehouse warehouse(String buCode, String location, Integer capacity, Integer stock) {
     Warehouse w = new Warehouse();
     w.businessUnitCode = buCode;
     w.location = location;
@@ -141,6 +141,25 @@ public class ReplaceWarehouseUseCaseTest {
     assertThrows(
         WarehouseValidationException.class,
         () -> useCase.replace(warehouse("MWH.001", "AMSTERDAM-001", 90, 5)));
+    verify(store, never()).create(any());
+  }
+
+  @Test
+  public void rejectsMissingBusinessUnitCode() {
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.replace(warehouse(null, "AMSTERDAM-001", 50, 5)));
+    verify(store, never()).create(any());
+  }
+
+  @Test
+  public void rejectsMissingCapacityOrStock() {
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.replace(warehouse("MWH.001", "AMSTERDAM-001", null, 5)));
+    assertThrows(
+        WarehouseValidationException.class,
+        () -> useCase.replace(warehouse("MWH.001", "AMSTERDAM-001", 50, null)));
     verify(store, never()).create(any());
   }
 }

@@ -1,5 +1,6 @@
 package com.fulfilment.application.monolith.warehouses.domain.usecases;
 
+import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseAlreadyArchivedException;
 import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseNotFoundException;
 import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseValidationException;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
@@ -25,6 +26,15 @@ public class ArchiveWarehouseUseCase implements ArchiveWarehouseOperation {
 
     Warehouse existing = warehouseStore.findByBusinessUnitCode(warehouse.businessUnitCode);
     if (existing == null) {
+      // No active warehouse: distinguish "already archived" from "never existed" via getAll(),
+      // which also returns archived rows.
+      boolean archivedExists =
+          warehouseStore.getAll().stream()
+              .anyMatch(w -> warehouse.businessUnitCode.equals(w.businessUnitCode));
+      if (archivedExists) {
+        throw new WarehouseAlreadyArchivedException(
+            "Warehouse " + warehouse.businessUnitCode + " is already archived.");
+      }
       throw new WarehouseNotFoundException(
           "No active warehouse found for business unit code " + warehouse.businessUnitCode + ".");
     }
