@@ -1,6 +1,6 @@
 # Task 3 — Warehouse Operations (Spec / Plan)
 
-Status: **DRAFT — awaiting review**
+Status: **APPROVED** (decisions confirmed on PR #6 — see §7)
 Branch: `feat/warehouse-operations`
 Scope: Task 3 "Warehouse (Must have)" only. The bonus task (Product/Store/Warehouse
 fulfilment associations) is **out of scope**.
@@ -61,7 +61,7 @@ Because of this, all lookups by business unit code resolve the **active** record
 Validated in `CreateWarehouseUseCase.create(Warehouse)` before persisting:
 
 1. **Business Unit Code uniqueness** — no active warehouse already exists with this
-   `businessUnitCode`.
+   `businessUnitCode` (violation → **409**).
 2. **Location validity** — `locationResolver.resolveByIdentifier(location)` returns a
    location (not null).
 3. **Creation feasibility** — number of active warehouses at that location is
@@ -95,7 +95,8 @@ business-unit-code uniqueness and the old capacity for the create checks.
 
 ### 4.4 Retrieve
 - `GET /warehouse` — list all (already implemented via `WarehouseStore.getAll()`).
-- `GET /warehouse/{id}` — return the warehouse or 404.
+- `GET /warehouse/{id}` — `{id}` is the business unit code; return the active warehouse via
+  `findByBusinessUnitCode`, or 404.
 
 ---
 
@@ -110,8 +111,8 @@ Implement the four stubbed methods using Panache:
 - `findByBusinessUnitCode(String)` — return the **active** warehouse
   (`businessUnitCode = ?1 and archivedAt is null`), or null.
 
-Add a small helper for the location-capacity/count queries used by the use cases — see §6
-for whether this lives on the port or as `getAll()` filtering.
+Location count/capacity checks are done by filtering `getAll()` in the use cases (per §7.5),
+so no additional port/query method is added.
 
 `DbWarehouse` gains a `fromWarehouse(...)`/apply helper (or the mapping is done inline in
 the repository).
@@ -141,43 +142,41 @@ entry point), so replace's archive+create commit atomically.
 | Method & path | Handler | Success | Errors |
 |---|---|---|---|
 | `GET /warehouse` | `listAllWarehousesUnits` | 200 list | — |
-| `POST /warehouse` | `createANewWarehouseUnit` | 201 created | 400 invalid |
+| `POST /warehouse` | `createANewWarehouseUnit` | 201 created | 400 invalid, 409 duplicate code |
 | `GET /warehouse/{id}` | `getAWarehouseUnitByID` | 200 | 404 not found |
 | `DELETE /warehouse/{id}` | `archiveAWarehouseUnitByID` | 204 | 404 not found |
 | `POST /warehouse/{businessUnitCode}/replacement` | `replaceTheCurrentActiveWarehouse` | 200 | 404, 400 |
 
+(`{id}` = business unit code per §7.1.)
+
 ---
 
-## 7. Open questions / decisions (please confirm)
+## 7. Decisions (confirmed on PR #6)
 
-1. **What is `{id}` in GET/DELETE `/warehouse/{id}`?**
-   The replace endpoint uses `{businessUnitCode}` explicitly, while get/delete say `{id}`
-   (OpenAPI example `"456"`, numeric). Two readings:
-   - **(A, recommended)** `{id}` = `businessUnitCode` — matches the only lookup port we
-     have (`findByBusinessUnitCode`) and the domain's notion of identity; archive/replace
-     are then consistent (all keyed by business unit code).
-   - **(B)** `{id}` = the DB primary key (`DbWarehouse.id`) — matches the numeric example,
-     but needs a new find-by-id path and archives a specific historical row.
+1. **`{id}` in GET/DELETE `/warehouse/{id}` = `businessUnitCode`.** All lookups
+   (get, archive, replace) are keyed by the business unit code via
+   `findByBusinessUnitCode`, resolving the **active** record. No find-by-DB-id path.
 
-2. **`maxCapacity` interpretation** — sum of all active warehouse capacities at the
-   location (**recommended**, per the field comment) vs. a simple per-warehouse cap
-   (`warehouse.capacity <= location.maxCapacity`). Note the seed data (`MWH.001`, cap 100
-   at `ZWOLLE-001` whose `maxCapacity` is 40) already violates either reading, so seeds are
-   treated as grandfathered/illustrative.
+2. **`maxCapacity` = sum of all warehouse capacities at the location.** Per the field
+   definition ("maximum capacity of the location summing all the warehouse capacities"),
+   the check is `sum(active capacities at location) + new.capacity <= location.maxCapacity`.
+   Seed data that already exceeds this is treated as grandfathered/illustrative.
 
-3. **Error status for validation failures** — the OpenAPI only defines `400`. Duplicate
-   business unit code is arguably a `409 Conflict`, but to honor the contract I propose
-   **400 for all validation failures** and **404 for missing target**. OK?
+3. **Error statuses:**
+   - Duplicate business unit code → **409 Conflict**.
+   - Other validation failures (invalid location, feasibility, capacity vs. location,
+     stock vs. capacity, replace stock-mismatch / capacity-accommodation) → **400**.
+   - Missing target (get/archive/replace on unknown active code) → **404**.
 
-4. **Exception → HTTP mapping** — add domain exceptions (`WarehouseValidationException`,
-   `WarehouseNotFoundException`) and translate them in the REST adapter (or via a dedicated
-   `ExceptionMapper`). A global `ExceptionMapper<Exception>` already exists in the `stores`
-   package; I'd add a warehouse-specific mapper rather than lean on that. OK?
+4. **Exception → HTTP mapping.** Add domain exceptions and a **warehouse-specific
+   `ExceptionMapper`** (do not lean on the `stores` global mapper):
+   - `DuplicateBusinessUnitCodeException` → 409
+   - `WarehouseValidationException` → 400
+   - `WarehouseNotFoundException` → 404
 
-5. **Port extension vs. filtering** — location count/capacity checks need "active
-   warehouses at location X". Options: add a method to `WarehouseStore`
-   (cleaner/efficient) or filter `getAll()` in the use case (no port change). Leaning
-   toward a **small port addition** for clarity and to avoid loading all rows. OK?
+5. **No port change — filter `getAll()`.** Location count/capacity checks are computed by
+   filtering `warehouseStore.getAll()` for active warehouses at the location, inside the use
+   case. `WarehouseStore` keeps its current shape.
 
 ---
 
