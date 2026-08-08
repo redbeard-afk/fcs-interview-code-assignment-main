@@ -1,0 +1,12 @@
+# Local PostgreSQL for running the test suite (%test profile) and the JVM integration test
+# (%prod profile). Start with:  docker compose -f docker-compose-test.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fcs-postgres
+    environment:
+      POSTGRES_USER: quarkus_test
+      POSTGRES_PASSWORD: quarkus_test
+      POSTGRES_DB: quarkus_test
+    ports:
+      - "15432:5432"
