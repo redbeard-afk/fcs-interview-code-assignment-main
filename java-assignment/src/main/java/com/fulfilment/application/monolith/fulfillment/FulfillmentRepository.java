@@ -15,17 +15,22 @@ public class FulfillmentRepository implements PanacheRepository<Fulfillment> {
         > 0;
   }
 
-  /** Distinct warehouses already fulfilling a given product for a given store. */
+  /** Distinct active warehouses already fulfilling a given product for a given store. */
   public long countDistinctWarehousesForStoreAndProduct(Store store, Product product) {
     return find("store = ?1 and product = ?2", store, product).stream()
+        .filter(f -> f.warehouse.archivedAt == null)
         .map(f -> f.warehouse.id)
         .distinct()
         .count();
   }
 
-  /** Distinct warehouses already fulfilling a given store (across all products). */
+  /** Distinct active warehouses already fulfilling a given store (across all products). */
   public long countDistinctWarehousesForStore(Store store) {
-    return find("store = ?1", store).stream().map(f -> f.warehouse.id).distinct().count();
+    return find("store = ?1", store).stream()
+        .filter(f -> f.warehouse.archivedAt == null)
+        .map(f -> f.warehouse.id)
+        .distinct()
+        .count();
   }
 
   public boolean isWarehouseServingStore(Store store, DbWarehouse warehouse) {

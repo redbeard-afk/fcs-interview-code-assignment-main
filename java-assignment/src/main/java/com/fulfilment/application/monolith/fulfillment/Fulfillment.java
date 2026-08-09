@@ -35,6 +35,5 @@ public class Fulfillment extends PanacheEntity {
     this.store = store;
     this.product = product;
     this.warehouse = warehouse;
-    // createdAt? 
   }
 }
