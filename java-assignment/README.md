@@ -74,6 +74,43 @@ java -jar ./target/quarkus-app/quarkus-run.jar
     Or measure total native memory consumption...
 
 
+## Running the tests
+
+The test suite (JUnit / `@QuarkusTest`) and the JVM integration test run against a real
+**PostgreSQL** — the same engine as production. Where Docker Dev Services are available, Quarkus
+starts a throwaway database automatically; otherwise start one yourself (the `%test` and `%prod`
+datasources expect it on `localhost:15432`).
+
+1. Start PostgreSQL:
+
+   ```sh
+   docker compose -f docker-compose-test.yml up -d
+   ```
+
+   (equivalently: `docker run -it --rm --name quarkus_test -e POSTGRES_USER=quarkus_test -e POSTGRES_PASSWORD=quarkus_test -e POSTGRES_DB=quarkus_test -p 15432:5432 postgres:16-alpine`)
+
+2. Run the tests:
+
+   ```sh
+   ./mvnw test        # unit + @QuarkusTest tests
+   ./mvnw verify      # the above, plus the WarehouseEndpointIT integration test
+   ```
+
+   Run a single test class:
+
+   ```sh
+   ./mvnw test -Dtest=WarehouseResourceImplTest
+   ```
+
+3. A code-coverage report (JaCoCo) is generated at `target/jacoco-report/index.html`.
+
+4. Stop the database when finished:
+
+   ```sh
+   docker compose -f docker-compose-test.yml down
+   ```
+
+
 ## See the demo in your browser
 
 Navigate to:
