@@ -11,30 +11,59 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
   @Override
   public List<Warehouse> getAll() {
-    return this.listAll().stream().map(DbWarehouse::toWarehouse).toList();
+    // Only active (non-archived) warehouses are part of the current register.
+    return find("archivedAt is null").list().stream().map(DbWarehouse::toWarehouse).toList();
   }
 
   @Override
   public void create(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'create'");
+    DbWarehouse entity = DbWarehouse.fromWarehouse(warehouse);
+    persist(entity);
+    // Reflect the generated id back so callers/responses can expose it.
+    warehouse.id = entity.id;
   }
 
   @Override
   public void update(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'replace'");
+    DbWarehouse entity = warehouse.id == null ? null : findById(warehouse.id);
+    if (entity == null) {
+      return;
+    }
+    // Managed entity: dirty checking flushes these changes at commit.
+    entity.location = warehouse.location;
+    entity.capacity = warehouse.capacity;
+    entity.stock = warehouse.stock;
+    entity.createdAt = warehouse.createdAt;
+    entity.archivedAt = warehouse.archivedAt;
   }
 
   @Override
   public void remove(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'remove'");
+    DbWarehouse entity = findActiveEntityByBusinessUnitCode(warehouse.businessUnitCode);
+    if (entity != null) {
+      delete(entity);
+    }
   }
 
   @Override
   public Warehouse findByBusinessUnitCode(String buCode) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'findById'");
+    DbWarehouse entity = findActiveEntityByBusinessUnitCode(buCode);
+    return entity == null ? null : entity.toWarehouse();
+  }
+
+  @Override
+  public Warehouse findByDbId(Long id) {
+    DbWarehouse entity = id == null ? null : findById(id);
+    return entity == null ? null : entity.toWarehouse();
+  }
+
+  /** Returns the active {@link DbWarehouse} entity for the business unit code, or null. */
+  public DbWarehouse findActiveDbByBusinessUnitCode(String buCode) {
+    return findActiveEntityByBusinessUnitCode(buCode);
+  }
+
+  /** Returns the single active (not archived) warehouse for the business unit code, or null. */
+  private DbWarehouse findActiveEntityByBusinessUnitCode(String buCode) {
+    return find("businessUnitCode = ?1 and archivedAt is null", buCode).firstResult();
   }
 }

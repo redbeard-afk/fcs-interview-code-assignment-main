@@ -2,19 +2,26 @@ package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.not;
 
 import io.quarkus.test.junit.QuarkusIntegrationTest;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
+// Ordered so the listing assertion runs before the archiving test mutates the shared database.
 @QuarkusIntegrationTest
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class WarehouseEndpointIT {
 
   @Test
+  @Order(1)
   public void testSimpleListWarehouses() {
 
     final String path = "warehouse";
 
-    // List all, should have all 3 products the database has initially:
+    // List all, should have all 3 warehouses the database has initially:
     given()
         .when()
         .get(path)
@@ -24,38 +31,37 @@ public class WarehouseEndpointIT {
   }
 
   @Test
+  @Order(2)
   public void testSimpleCheckingArchivingWarehouses() {
 
-    // Uncomment the following lines to test the WarehouseResourceImpl implementation
+    final String path = "warehouse";
 
-    // final String path = "warehouse";
+    // List all, should have all 3 warehouses (and their locations) the database has initially:
+    given()
+        .when()
+        .get(path)
+        .then()
+        .statusCode(200)
+        .body(
+            containsString("MWH.001"),
+            containsString("MWH.012"),
+            containsString("MWH.023"),
+            containsString("ZWOLLE-001"),
+            containsString("AMSTERDAM-001"),
+            containsString("TILBURG-001"));
 
-    // List all, should have all 3 products the database has initially:
-    // given()
-    //     .when()
-    //     .get(path)
-    //     .then()
-    //     .statusCode(200)
-    //     .body(
-    //         containsString("MWH.001"),
-    //         containsString("MWH.012"),
-    //         containsString("MWH.023"),
-    //         containsString("ZWOLLE-001"),
-    //         containsString("AMSTERDAM-001"),
-    //         containsString("TILBURG-001"));
+    // Archive the warehouse with id 1 (MWH.001 at ZWOLLE-001):
+    given().when().delete(path + "/1").then().statusCode(204);
 
-    // // Archive the ZWOLLE-001:
-    // given().when().delete(path + "/1").then().statusCode(204);
-
-    // // List all, ZWOLLE-001 should be missing now:
-    // given()
-    //     .when()
-    //     .get(path)
-    //     .then()
-    //     .statusCode(200)
-    //     .body(
-    //         not(containsString("ZWOLLE-001")),
-    //         containsString("AMSTERDAM-001"),
-    //         containsString("TILBURG-001"));
+    // List all, ZWOLLE-001 should be missing now:
+    given()
+        .when()
+        .get(path)
+        .then()
+        .statusCode(200)
+        .body(
+            not(containsString("ZWOLLE-001")),
+            containsString("AMSTERDAM-001"),
+            containsString("TILBURG-001"));
   }
 }
