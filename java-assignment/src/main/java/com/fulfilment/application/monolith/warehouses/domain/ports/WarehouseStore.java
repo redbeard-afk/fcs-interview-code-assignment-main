@@ -14,4 +14,7 @@ public interface WarehouseStore {
   void remove(Warehouse warehouse);
 
   Warehouse findByBusinessUnitCode(String buCode);
+
+  /** Find a warehouse by its database id (active or archived), or null. */
+  Warehouse findByDbId(Long id);
 }

@@ -1,8 +1,11 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
@@ -12,6 +15,7 @@ import org.junit.jupiter.api.Test;
 public class WarehouseResourceImplTest {
 
   private static final String PATH = "warehouse";
+  private static final long MISSING_ID = 999_999L;
 
   private String body(String bu, String location, int capacity, int stock) {
     return "{\"businessUnitCode\":\""
@@ -25,29 +29,59 @@ public class WarehouseResourceImplTest {
         + "}";
   }
 
+  /** Creates a warehouse and returns its (numeric) id as a path segment. */
+  private String createReturningId(String bu, String location, int capacity, int stock) {
+    return given()
+        .contentType("application/json")
+        .body(body(bu, location, capacity, stock))
+        .when()
+        .post(PATH)
+        .then()
+        .statusCode(201)
+        .extract()
+        .jsonPath()
+        .getString("id");
+  }
+
   @Test
   public void listReturnsSeededWarehouses() {
     given().when().get(PATH).then().statusCode(200);
   }
 
   @Test
-  public void createValidReturns201AndIsRetrievable() {
-    given()
-        .contentType("application/json")
-        .body(body("REST.CREATE", "AMSTERDAM-002", 30, 10))
-        .when()
-        .post(PATH)
-        .then()
-        .statusCode(201)
-        .body("businessUnitCode", equalTo("REST.CREATE"));
+  public void createValidReturns201AndIsRetrievableById() {
+    String id =
+        given()
+            .contentType("application/json")
+            .body(body("REST.CREATE", "AMSTERDAM-002", 30, 10))
+            .when()
+            .post(PATH)
+            .then()
+            .statusCode(201)
+            .body("businessUnitCode", equalTo("REST.CREATE"))
+            .body("id", notNullValue()) // the OpenAPI schema declares id
+            .extract()
+            .jsonPath()
+            .getString("id");
 
     given()
         .when()
-        .get(PATH + "/REST.CREATE")
+        .get(PATH + "/" + id)
         .then()
         .statusCode(200)
         .body("location", equalTo("AMSTERDAM-002"))
-        .body("capacity", is(30));
+        .body("capacity", is(30))
+        .body("id", equalTo(id));
+  }
+
+  @Test
+  public void listExcludesArchivedWarehouses() {
+    String id = createReturningId("REST.LISTARCH", "HELMOND-001", 10, 1);
+
+    given().when().delete(PATH + "/" + id).then().statusCode(204);
+
+    // Once archived, it must not appear in the register listing.
+    given().when().get(PATH).then().statusCode(200).body(not(containsString("REST.LISTARCH")));
   }
 
   @Test
@@ -74,56 +108,53 @@ public class WarehouseResourceImplTest {
 
   @Test
   public void getUnknownReturns404() {
-    given().when().get(PATH + "/UNKNOWN.CODE").then().statusCode(404);
+    given().when().get(PATH + "/" + MISSING_ID).then().statusCode(404);
+  }
+
+  @Test
+  public void getNonNumericIdReturns404() {
+    given().when().get(PATH + "/NOT-A-NUMBER").then().statusCode(404);
   }
 
   @Test
   public void archiveReturns204ThenGetReturns404() {
-    given()
-        .contentType("application/json")
-        .body(body("REST.ARCHIVE", "EINDHOVEN-001", 10, 5))
-        .when()
-        .post(PATH)
-        .then()
-        .statusCode(201);
+    String id = createReturningId("REST.ARCHIVE", "EINDHOVEN-001", 10, 5);
 
-    given().when().delete(PATH + "/REST.ARCHIVE").then().statusCode(204);
-    given().when().get(PATH + "/REST.ARCHIVE").then().statusCode(404);
+    given().when().delete(PATH + "/" + id).then().statusCode(204);
+    given().when().get(PATH + "/" + id).then().statusCode(404);
   }
 
   @Test
   public void archiveUnknownReturns404() {
-    given().when().delete(PATH + "/UNKNOWN.CODE").then().statusCode(404);
+    given().when().delete(PATH + "/" + MISSING_ID).then().statusCode(404);
   }
 
   @Test
   public void archiveAlreadyArchivedReturns409() {
-    given()
-        .contentType("application/json")
-        .body(body("REST.DBLARCH", "HELMOND-001", 10, 5))
-        .when()
-        .post(PATH)
-        .then()
-        .statusCode(201);
+    String id = createReturningId("REST.DBLARCH", "HELMOND-001", 10, 5);
 
-    given().when().delete(PATH + "/REST.DBLARCH").then().statusCode(204);
-    // second archive: the code exists but is already archived
-    given().when().delete(PATH + "/REST.DBLARCH").then().statusCode(409);
+    given().when().delete(PATH + "/" + id).then().statusCode(204);
+    // second archive of the same row: already archived
+    given().when().delete(PATH + "/" + id).then().statusCode(409);
   }
 
   @Test
   public void replaceValidReturns200WithNewData() {
     // Replace seeded MWH.023 (TILBURG-001, cap 30, stock 27) with a larger-capacity unit.
-    given()
-        .contentType("application/json")
-        .body(body("MWH.023", "TILBURG-001", 35, 27))
-        .when()
-        .post(PATH + "/MWH.023/replacement")
-        .then()
-        .statusCode(200)
-        .body("capacity", is(35));
+    String newId =
+        given()
+            .contentType("application/json")
+            .body(body("MWH.023", "TILBURG-001", 35, 27))
+            .when()
+            .post(PATH + "/MWH.023/replacement")
+            .then()
+            .statusCode(200)
+            .body("capacity", is(35))
+            .extract()
+            .jsonPath()
+            .getString("id");
 
-    given().when().get(PATH + "/MWH.023").then().statusCode(200).body("capacity", is(35));
+    given().when().get(PATH + "/" + newId).then().statusCode(200).body("capacity", is(35));
   }
 
   @Test

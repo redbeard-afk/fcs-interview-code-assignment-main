@@ -39,10 +39,9 @@ public class WarehouseResourceImpl implements WarehouseResource {
 
   @Override
   public Warehouse getAWarehouseUnitByID(String id) {
-    var warehouse = warehouseStore.findByBusinessUnitCode(id);
-    if (warehouse == null) {
-      throw new WarehouseNotFoundException(
-          "No active warehouse found for business unit code " + id + ".");
+    var warehouse = warehouseStore.findByDbId(parseId(id));
+    if (warehouse == null || warehouse.archivedAt != null) {
+      throw new WarehouseNotFoundException("No warehouse found for id " + id + ".");
     }
     return toWarehouseResponse(warehouse);
   }
@@ -51,8 +50,17 @@ public class WarehouseResourceImpl implements WarehouseResource {
   @Transactional
   public void archiveAWarehouseUnitByID(String id) {
     var warehouse = new com.fulfilment.application.monolith.warehouses.domain.models.Warehouse();
-    warehouse.businessUnitCode = id;
+    warehouse.id = parseId(id);
     archiveWarehouseOperation.archive(warehouse);
+  }
+
+  /** Parses the numeric warehouse id; a non-numeric path segment is treated as not found. */
+  private Long parseId(String id) {
+    try {
+      return Long.valueOf(id);
+    } catch (NumberFormatException e) {
+      throw new WarehouseNotFoundException("No warehouse found for id " + id + ".");
+    }
   }
 
   @Override
@@ -79,6 +87,7 @@ public class WarehouseResourceImpl implements WarehouseResource {
   private Warehouse toWarehouseResponse(
       com.fulfilment.application.monolith.warehouses.domain.models.Warehouse warehouse) {
     var response = new Warehouse();
+    response.setId(warehouse.id == null ? null : String.valueOf(warehouse.id));
     response.setBusinessUnitCode(warehouse.businessUnitCode);
     response.setLocation(warehouse.location);
     response.setCapacity(warehouse.capacity);

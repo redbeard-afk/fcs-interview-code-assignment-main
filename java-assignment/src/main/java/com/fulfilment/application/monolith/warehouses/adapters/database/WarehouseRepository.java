@@ -11,17 +11,21 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
   @Override
   public List<Warehouse> getAll() {
-    return this.listAll().stream().map(DbWarehouse::toWarehouse).toList();
+    // Only active (non-archived) warehouses are part of the current register.
+    return find("archivedAt is null").list().stream().map(DbWarehouse::toWarehouse).toList();
   }
 
   @Override
   public void create(Warehouse warehouse) {
-    persist(DbWarehouse.fromWarehouse(warehouse));
+    DbWarehouse entity = DbWarehouse.fromWarehouse(warehouse);
+    persist(entity);
+    // Reflect the generated id back so callers/responses can expose it.
+    warehouse.id = entity.id;
   }
 
   @Override
   public void update(Warehouse warehouse) {
-    DbWarehouse entity = findActiveEntityByBusinessUnitCode(warehouse.businessUnitCode);
+    DbWarehouse entity = warehouse.id == null ? null : findById(warehouse.id);
     if (entity == null) {
       return;
     }
@@ -44,6 +48,12 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   @Override
   public Warehouse findByBusinessUnitCode(String buCode) {
     DbWarehouse entity = findActiveEntityByBusinessUnitCode(buCode);
+    return entity == null ? null : entity.toWarehouse();
+  }
+
+  @Override
+  public Warehouse findByDbId(Long id) {
+    DbWarehouse entity = id == null ? null : findById(id);
     return entity == null ? null : entity.toWarehouse();
   }
 

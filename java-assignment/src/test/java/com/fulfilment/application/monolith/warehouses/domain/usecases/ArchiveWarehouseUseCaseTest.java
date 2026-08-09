@@ -14,7 +14,6 @@ import com.fulfilment.application.monolith.warehouses.domain.exceptions.Warehous
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import java.time.LocalDateTime;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,20 +29,27 @@ public class ArchiveWarehouseUseCaseTest {
     useCase = new ArchiveWarehouseUseCase(store);
   }
 
-  private Warehouse warehouse(String buCode) {
+  private Warehouse warehouse(Long id) {
     Warehouse w = new Warehouse();
-    w.businessUnitCode = buCode;
+    w.id = id;
+    w.businessUnitCode = "MWH.001";
     w.location = "AMSTERDAM-001";
     w.capacity = 10;
     w.stock = 1;
     return w;
   }
 
+  private Warehouse request(Long id) {
+    Warehouse w = new Warehouse();
+    w.id = id;
+    return w;
+  }
+
   @Test
   public void archivesExistingWarehouse() {
-    when(store.findByBusinessUnitCode("MWH.001")).thenReturn(warehouse("MWH.001"));
+    when(store.findByDbId(1L)).thenReturn(warehouse(1L));
 
-    useCase.archive(warehouse("MWH.001"));
+    useCase.archive(request(1L));
 
     ArgumentCaptor<Warehouse> captor = ArgumentCaptor.forClass(Warehouse.class);
     verify(store).update(captor.capture());
@@ -52,29 +58,25 @@ public class ArchiveWarehouseUseCaseTest {
 
   @Test
   public void throwsWhenWarehouseNotFound() {
-    when(store.findByBusinessUnitCode("MWH.404")).thenReturn(null);
-    when(store.getAll()).thenReturn(List.of());
+    when(store.findByDbId(404L)).thenReturn(null);
 
-    assertThrows(WarehouseNotFoundException.class, () -> useCase.archive(warehouse("MWH.404")));
+    assertThrows(WarehouseNotFoundException.class, () -> useCase.archive(request(404L)));
     verify(store, never()).update(any());
   }
 
   @Test
   public void rejectArchivingArchivedWarehouse() {
-    // No active record, but an archived row with the same code exists.
-    Warehouse archived = warehouse("MWH.001");
+    Warehouse archived = warehouse(1L);
     archived.archivedAt = LocalDateTime.now();
-    when(store.findByBusinessUnitCode("MWH.001")).thenReturn(null);
-    when(store.getAll()).thenReturn(List.of(archived));
+    when(store.findByDbId(1L)).thenReturn(archived);
 
-    assertThrows(
-        WarehouseAlreadyArchivedException.class, () -> useCase.archive(warehouse("MWH.001")));
+    assertThrows(WarehouseAlreadyArchivedException.class, () -> useCase.archive(request(1L)));
     verify(store, never()).update(any());
   }
 
   @Test
-  public void rejectsMissingBusinessUnitCode() {
-    assertThrows(WarehouseValidationException.class, () -> useCase.archive(warehouse(null)));
+  public void rejectsMissingId() {
+    assertThrows(WarehouseValidationException.class, () -> useCase.archive(request(null)));
     verify(store, never()).update(any());
   }
 }
