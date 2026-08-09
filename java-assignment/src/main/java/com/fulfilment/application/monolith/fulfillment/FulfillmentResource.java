@@ -1,6 +1,9 @@
 package com.fulfilment.application.monolith.fulfillment;
 
+import java.util.List;
+
 import com.fulfilment.application.monolith.fulfillment.exceptions.FulfillmentValidationException;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -12,7 +15,6 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.util.List;
 
 @Path("fulfillment")
 @ApplicationScoped
